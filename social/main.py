@@ -2,6 +2,9 @@ from static.twitter import normalize_twitter_post
 from static.instagram import normalize_instagram_post
 from static.facebook import normalize_facebook_post
 from static.linkedin import normalize_linkedin_post
+from static.linkedin_commants import normalize_linkedin_comment
+from static.linkedin_profile import normalize_linkedin_profile
+from static.safe import safe_int
 import re
 import json
 from datetime import datetime
@@ -18,8 +21,16 @@ def normalize_social_post(data, platform):
         return normalize_twitter_post(data)
     elif platform == "instagram":
         return normalize_instagram_post(data)
+    elif platform == 'linkedin_comment':
+        return normalize_linkedin_comment(data)
+    elif platform == 'linkedin_profile':
+        return normalize_linkedin_profile(data)
     else:
         raise ValueError(f"Unsupported platform: {platform}")
+
+
+
+
 
 def process_and_normalize(data_list, platform):
     """Process and normalize a list of social media posts for a specific platform"""
@@ -33,8 +44,17 @@ def process_and_normalize(data_list, platform):
             if post is None:
                 print(f"Warning: Encountered None post for {platform}, skipping")
                 continue
-            result = normalize_social_post(post, platform)
-            normalized.append(result)
+                
+            # Check if the item is a list instead of a dictionary
+            if isinstance(post, list):
+                print(f"Warning: Item in {platform} is a list, not a dictionary. Processing each item in the list.")
+                for item in post:
+                    if item is not None and isinstance(item, dict):
+                        result = normalize_social_post(item, platform)
+                        normalized.append(result)
+            else:
+                result = normalize_social_post(post, platform)
+                normalized.append(result)
         except Exception as e:
             print(f"Error normalizing {platform} post: {str(e)}")
     return normalized
@@ -73,35 +93,40 @@ def export_normalized_data(data, output_file, format="json"):
 
 def main():
     try:
-        # Load input data
-        input_file = r"A:\Adya\social\Data\social.json"  # Change this to your input file
-        output_file = r"A:\Adya\social\Data\normalized_social_data.json"  # Change this to your desired output file
+        input_file = r"A:\Adya\social\Data\social.json"  
+        output_file = r"A:\Adya\social\Data\normalized_social_data.json"  
         export_format = "json"  # or "csv"
         
         print(f"Loading data from {input_file}...")
         with open(input_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        # Extract data for each platform
+            
         linkedin_data = data.get("linkedin", [])
         facebook_data = data.get("facebook", [])
         twitter_data = data.get("twitter", [])
         instagram_data = data.get("instagram", [])
-        # Process and normalize data for each platform
+        linkedin_comments = data.get("linkedin_comments", [])
+        linkedin_profile = data.get("linkedin_profile", [])
+        
+        print(f"Type of linkedin_comments: {type(linkedin_comments)}")
+        if linkedin_comments and isinstance(linkedin_comments, list) and len(linkedin_comments) > 0:
+            print(f"Type of first item in linkedin_comments: {type(linkedin_comments[0])}")
+        
         print("Normalizing data...")
         normalized_data = {
             "linkedin": process_and_normalize(linkedin_data, "linkedin"),
             "facebook": process_and_normalize(facebook_data, "facebook"),
             "twitter": process_and_normalize(twitter_data, "twitter"),
-            "instagram": process_and_normalize(instagram_data, "instagram")
+            "instagram": process_and_normalize(instagram_data, "instagram"),
+            "linkedin_comments": process_and_normalize(linkedin_comments, "linkedin_comment"),  # Fixed typo here
+            "linkedin_profile": process_and_normalize(linkedin_profile, "linkedin_profile")  # Fixed typo here
         }
         
-        # Export normalized data
         print(f"Exporting normalized data to {output_file}...")
         export_normalized_data(normalized_data, output_file, export_format)
         
         print(f"Successfully processed and exported normalized data to {output_file}")
         
-        # Print some stats
         total_posts = sum(len(posts) for posts in normalized_data.values())
         print(f"Total normalized posts: {total_posts}")
         for platform, posts in normalized_data.items():
@@ -113,6 +138,7 @@ def main():
         print(f"Error: Invalid JSON format in input file - {str(e)}")
     except Exception as e:
         print(f"Error: {str(e)}")
+
 
 if __name__ == "__main__":
     main()
